@@ -5,43 +5,97 @@ using System.IO;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Windows.Forms;
 using MySql.Data;
 using MySql.Data.MySqlClient;
 
 namespace DBConnecte
 {
+    // La class persone reçoit les valeurs la base de données
+  
+    public class Personne
+    {
+        
+        private string nom;
+        private DateTime date_naissance;
+
+        //ascesseurs 
+        public string Nom { get => nom; set => nom = value; }
+        public DateTime Date_naissance { get => date_naissance; set => date_naissance = value; }
+
+        //contructeurs
+        // L'un sans paramètres et l'autre, correspondant à celles de la bdd qui récupère les valeurs contenu dans les zones de texte du formulaire
+        public Personne()
+        {
+
+        }
+
+        public Personne(string nom, DateTime date_n)
+        {
+            this.nom = nom;
+            date_naissance = date_n;
+        }
+
+        // Méthode de conversion SQL <-> C# (les formats sont différents)
+        public String Convert2MySql(DateTime dt)
+        {
+            return dt.ToString("yyyy-MM-dd HH:mm:ss");
+        }
+
+        private DateTime Convert2C(String sqlDate)
+        {
+            return DateTime.Parse(sqlDate);
+        }
+
+        // affiche les valeurs de personne
+        public string affiche()
+        {
+            return "personne = " + nom + " " + date_naissance.ToString();
+        }
+    }
 
     public class DBConnect
     {
+        /*
+         * On va maintenant créer la class DBConnect dans la bibliothèque, qui va accueillir nos différentes requêtes SQL.
+         */
+
+        //Il faut initialisé les différents composants nécessaires pour se connecter: l' ip, la database, le user et le password.
         private MySqlConnection connection;
         private string server;
         private string database;
-        private string id;
+        private string User;
         private string password;
 
         //Constructor
-        public DBConnect(string ip, string bdd, string identifiant, string pwd)
+        //Le constructeur aura les composants de connexion en paramètres
+        public DBConnect(string ip, string bdd, string user, string pwd)
         {
+            // récupération des futures zones de textes dans notre formulaire pour la connexion puis on utilise Initialize()
             server = ip;
             database = bdd;
-            id = identifiant;
+            User = user;
             password = pwd;
             Initialize();
         }
 
         //Initialize values
+        // déclare une classe MySqlConnection en utilisant les paramètres de DBConnect()
         private void Initialize()
         {
-
             string connectionString;
+
             connectionString = "SERVER=" + server + ";" + "DATABASE=" +
-            database + ";" + "id=" + id + ";" + "PASSWORD=" + password + ";";
+            database + ";" + "user=" + User + ";" + "PASSWORD=" + password + ";";
 
             connection = new MySqlConnection(connectionString);
+
         }
 
         //open connection to database
-        private bool OpenConnection()
+        // On va se servir de la class MySqlConnection du nom de connection pour maintenant essayer de se connecter
+        // si cela ne fonctionne pas on renvoie l'erreur
+        public bool OpenConnection()
         {
             try
             {
@@ -50,27 +104,13 @@ namespace DBConnecte
             }
             catch (MySqlException ex)
             {
-                //When handling errors, you can your application's response based 
-                //on the error number.
-                //The two most common error numbers when connecting are as follows:
-                //0: Cannot connect to server.
-                //1045: Invalid user name and/or password.
-                switch (ex.Number)
-                {
-                    case 0:
-                        return true;//MessageBox.Show("Cannot connect to server.  Contact administrator");
-                        break;
-
-                    case 1045:
-                        return true; //MessageBox.Show("Invalid username/password, please try again");
-                        break;
-                }
                 return false;
             }
         }
 
         //Close connection
-        private bool CloseConnection()
+        //On ferme la connexion et on renvoi si il y a une erreur
+        public bool CloseConnection()
         {
             try
             {
@@ -79,40 +119,46 @@ namespace DBConnecte
             }
             catch (MySqlException ex)
             {
+                MessageBox.Show(ex.Message);
                 return false;
             }
         }
 
         //Insert statement
-        public void Insert()
+        // Insert prends en paramètre une classe Personne qui va récupéré a deux paramètres Nom et Date_naissance
+        // Insert envoi la requête avec les dites valeurs qui sont celles récupérés dans le formulaire avec la zone de texte et la date time
+        //puis envoie tout simplement le tout dans la bdd avec là encore OpenConnection
+        public void Insert(Personne nouveau)
         {
-            string query = "INSERT INTO tableinfo (name, age) VALUES('John Smith', '33')";
+            string query = "INSERT INTO matable(nom, ddn) VALUES ('" + nouveau.Nom + "', '" + nouveau.Convert2MySql(nouveau.Date_naissance) + "')";
 
-            //open connection
+            //ouvre connection
             if (this.OpenConnection() == true)
             {
-                //create command and assign the query and connection from the constructor
+                //créer une requête et attribuer la requête et la connexion depuis le constructeur
                 MySqlCommand cmd = new MySqlCommand(query, connection);
 
-                //Execute command
+                //Execute la requête
                 cmd.ExecuteNonQuery();
 
-                //close connection
+                //ferme connection
                 this.CloseConnection();
             }
         }
 
         //Update statement
-        public void Update()
+        //Même principe que pour au dessus sauf qu'il faut une autre personne pour contenir avoir les anciennes valeurs à remplacer
+        // Nouvelle contient les nouvelles valeurs et editer pour le where
+        public void Update(Personne nouvelle, Personne editer)
         {
-            string query = "UPDATE tableinfo SET name='Joe', age='22' WHERE name='John Smith'";
+            string query = "UPDATE matable SET nom='" + nouvelle.Nom + "', ddn='" + nouvelle.Convert2MySql(nouvelle.Date_naissance) + "' WHERE name='" + editer.Nom + "'";
 
             //Open connection
             if (this.OpenConnection() == true)
             {
-                //create mysql command
+                //créer la requête sql
                 MySqlCommand cmd = new MySqlCommand();
-                //Assign the query using CommandText
+                //Assigne the query
                 cmd.CommandText = query;
                 //Assign the connection using Connection
                 cmd.Connection = connection;
@@ -120,15 +166,16 @@ namespace DBConnecte
                 //Execute query
                 cmd.ExecuteNonQuery();
 
-                //close connection
+                //ferme connection
                 this.CloseConnection();
             }
         }
 
         //Delete statement
-        public void Delete()
+        // comme Insert sauf que la requête DELETE la ligne
+        public void Delete( string nomsup )
         {
-            string query = "DELETE FROM tableinfo WHERE name='John Smith'";
+            string query = "DELETE FROM matable WHERE name='" + nomsup + "'";
 
             if (this.OpenConnection() == true)
             {
@@ -139,17 +186,15 @@ namespace DBConnecte
         }
 
         //Select statement
-        public List<string>[] Select()
+        // La requête récupère tout le contenu de matable
+        public List<Personne> Select()
         {
-            string query = "SELECT * FROM tableinfo";
+            string query = "SELECT * FROM matable";
 
-            //Create a list to store the result
-            List<string>[] list = new List<string>[3];
-            list[0] = new List<string>();
-            list[1] = new List<string>();
-            list[2] = new List<string>();
+            //Create une liste pour y ranger le résultat de la requête
+            List<Personne> list = new List<Personne>();
 
-            //Open connection
+            //Ouvre connection
             if (this.OpenConnection() == true)
             {
                 //Create Command
@@ -157,12 +202,14 @@ namespace DBConnecte
                 //Create a data reader and Execute the command
                 MySqlDataReader dataReader = cmd.ExecuteReader();
 
-                //Read the data and store them in the list
+                //initialisation d'un objet personne
+                Personne unepersonne;
+
+                //Lit les données de la list au travers d'une boucle avec la class MySqlDataReader
                 while (dataReader.Read())
                 {
-                    list[0].Add(dataReader["id"] + "");
-                    list[1].Add(dataReader["name"] + "");
-                    list[2].Add(dataReader["age"] + "");
+                    unepersonne = new Personne(dataReader["nom"].ToString(), DateTime.Parse(dataReader["ddn"].ToString()));
+                    list.Add(unepersonne);
                 }
 
                 //close Data Reader
@@ -179,110 +226,6 @@ namespace DBConnecte
                 return list;
             }
         }
-
-        //Count statement
-        public int Count()
-        {
-            string query = "SELECT Count(*) FROM tableinfo";
-            int Count = -1;
-
-            //Open Connection
-            if (this.OpenConnection() == true)
-            {
-                //Create Mysql Command
-                MySqlCommand cmd = new MySqlCommand(query, connection);
-
-                //ExecuteScalar will return one value
-                Count = int.Parse(cmd.ExecuteScalar() + "");
-
-                //close Connection
-                this.CloseConnection();
-
-                return Count;
-            }
-            else
-            {
-                return Count;
-            }
-        }
-
-        //Backup
-        public void Backup()
-        {
-            try
-            {
-                DateTime Time = DateTime.Now;
-                int year = Time.Year;
-                int month = Time.Month;
-                int day = Time.Day;
-                int hour = Time.Hour;
-                int minute = Time.Minute;
-                int second = Time.Second;
-                int millisecond = Time.Millisecond;
-
-                //Save file to C:\ with the current date as a filename
-                string path;
-                path = "C:\\MySqlBackup" + year + "-" + month + "-" + day +
-            "-" + hour + "-" + minute + "-" + second + "-" + millisecond + ".sql";
-                StreamWriter file = new StreamWriter(path);
-
-
-                ProcessStartInfo psi = new ProcessStartInfo();
-                psi.FileName = "mysqldump";
-                psi.RedirectStandardInput = false;
-                psi.RedirectStandardOutput = true;
-                psi.Arguments = string.Format(@"-u{0} -p{1} -h{2} {3}",
-                    id, password, server, database);
-                psi.UseShellExecute = false;
-
-                Process process = Process.Start(psi);
-
-                string output;
-                output = process.StandardOutput.ReadToEnd();
-                file.WriteLine(output);
-                process.WaitForExit();
-                file.Close();
-                process.Close();
-            }
-            catch (IOException ex)
-            {
-                MessageBox.Show("Error , unable to backup!");
-            }
-        }
-
-        //Restore
-        public void Restore()
-        {
-            try
-            {
-                //Read file from C:\
-                string path;
-                path = "C:\\MySqlBackup.sql";
-                StreamReader file = new StreamReader(path);
-                string input = file.ReadToEnd();
-                file.Close();
-
-                ProcessStartInfo psi = new ProcessStartInfo();
-                psi.FileName = "mysql";
-                psi.RedirectStandardInput = true;
-                psi.RedirectStandardOutput = false;
-                psi.Arguments = string.Format(@"-u{0} -p{1} -h{2} {3}",
-                    id, password, server, database);
-                psi.UseShellExecute = false;
-
-
-                Process process = Process.Start(psi);
-                process.StandardInput.WriteLine(input);
-                process.StandardInput.Close();
-                process.WaitForExit();
-                process.Close();
-            }
-            catch (IOException ex)
-            {
-                MessageBox.Show("Error , unable to Restore!");
-            }
-        }
-
-
     }
 }
+
